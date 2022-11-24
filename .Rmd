@@ -1,0 +1,179 @@
+---
+title: "London Jet Report"
+author: "Group 7 (Yashika Girdhar, Suyash, Prateek, Shalini, R.M. Rama Chidambram, Paras Nasa, Sunil T Samuel)"
+Date: 19/10/2022
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    section_number: true
+    df_print: paged
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Problem Statement
+
+London jets hockey franchise revenue is decreasing every year.
+
+## Analysis
+
+Analyse data to understand the frequency, recency of the customer going for watching the matches and group the clients accordingly
+
+## RFM Analysis using R
+
+**Step 1: Libraries used for RFM analysis**
+```{r Libraries used}
+library(dplyr)
+library(rfm)
+library(lubridate)
+library (ggplot2)
+library(gridExtra)
+```
+
+**Step 2: Import the complete data set to R**
+```{r Data Import}
+London_Jet<-read.csv("clipboard",sep = "\t", header = TRUE)
+jetdata<-London_Jet
+```
+
+**Step 3: Data Processing**
+```{r Data Processing}
+str(jetdata)
+colSums(is.na(jetdata))
+```
+**Step 4: Add transition day field**
+```{r Add Dummy Day}
+jetdata$LastTransDay<- 1
+```
+
+**Step 5: Convert field to different format**
+```{r Converet to char}
+jetdata$LastTransYear<-as.character(jetdata$LastTransYear)
+jetdata$LastTransMonth<-as.character(jetdata$LastTransMonth)
+jetdata$LastTransDay<-as.character(jetdata$LastTransDay)
+jetdata$Income<-as.factor(jetdata$Income)
+jetdata$Income<-as.integer(jetdata$Income)
+```
+
+
+**Step 6: Combine LastTransYear, LastTransMonth and LastTransDay**
+```{r Combine Tear,Month and Day}
+jetdata$Date<-paste(jetdata$LastTransYear,jetdata$LastTransMonth,jetdata$LastTransDay)
+```
+
+**Step 7: Convert date to date format**
+```{r Convert to Date Format}
+jetdata$Date<-as.Date(jetdata$Date,format = "%Y%m%d")
+
+```
+
+**Remove the field which are not required**
+```{r cols.print=9, rows.print=100, cols.min.print=9, pages.print=2}
+jetdata1<-jetdata[-c(2:8,10,12:14,16:21)]
+jetdata1
+summary(jetdata1)
+```
+
+**Step 8: Define the analysis date**
+```{r Define the Analysis date}
+analysis_date<-max(jetdata1$Date)
+analysis_date
+```
+
+**Step 9: Calculate the Recency, Frequency and Monetary value for each customer**
+```{r cols.print=9, rows.print=100, cols.min.print=9, pages.print=2}
+rfm_jetdata<- jetdata1 %>% group_by(CustID) %>% summarise(Recency= as.numeric(analysis_date- max(Date)),frequency= Num_Games,Monetary=sum(Tot_Sales))
+rfm_jetdata
+```
+
+**Step 10: Plot to understand the distribution of Recencey, Frequency and Monetary**
+```{r Plot}
+r<-ggplot(rfm_jetdata) + geom_density(aes(x=Recency))
+f<-ggplot(rfm_jetdata) + geom_density(aes(x=frequency))
+m<-ggplot(rfm_jetdata) + geom_density (aes(x=Monetary))
+grid.arrange(r,f,m, nrow=3)
+```
+
+**Step 11: Calculate recency score**
+```{r Recency Score}
+rfm_jetdata$R_Score<-0
+rfm_jetdata$R_Score[rfm_jetdata$Recency>=822]<-1
+rfm_jetdata$R_Score[rfm_jetdata$Recency>=550 & rfm_jetdata$Recency<822]<-2
+rfm_jetdata$R_Score[rfm_jetdata$Recency>=456 & rfm_jetdata$Recency<550]<-3
+rfm_jetdata$R_Score[rfm_jetdata$Recency>=214 & rfm_jetdata$Recency<456]<-4
+rfm_jetdata$R_Score[rfm_jetdata$Recency<214]<-5
+```
+
+**Step 12: Calculate frequency score**
+```{r Frequency Score}
+rfm_jetdata$F_Score<-0
+rfm_jetdata$F_Score[rfm_jetdata$frequency>=8]<-5
+rfm_jetdata$F_Score[rfm_jetdata$frequency>=5 & rfm_jetdata$frequency<8]<-4
+rfm_jetdata$F_Score[rfm_jetdata$frequency>=3 & rfm_jetdata$frequency<5]<-3
+rfm_jetdata$F_Score[rfm_jetdata$frequency>=2 & rfm_jetdata$frequency<3]<-2
+rfm_jetdata$F_Score[rfm_jetdata$frequency<=1]<-1
+```
+
+**Step 13: Calculate monetary score**
+```{r Monetary Score}
+rfm_jetdata$M_Score<-0
+rfm_jetdata$M_Score[rfm_jetdata$Monetary>=2000]<-5
+rfm_jetdata$M_Score[rfm_jetdata$Monetary>=660 & rfm_jetdata$Monetary<2000]<-4
+rfm_jetdata$M_Score[rfm_jetdata$Monetary>=476 & rfm_jetdata$Monetary<660]<-3
+rfm_jetdata$M_Score[rfm_jetdata$Monetary>=190 & rfm_jetdata$Monetary<476]<-2
+rfm_jetdata$M_Score[rfm_jetdata$Monetary<190]<-1
+```
+
+**Step 14: Combine the R_Score, F_Score and M_Score**
+```{r Combine R,F,amd Mscore}
+rfm_jetdata<-rfm_jetdata%>%mutate(RFM_Score=R_Score*100+F_Score*10+M_Score)
+```
+
+```{r cols.print=9, rows.print=100, cols.min.print=9, pages.print=2}
+rfm_jetdata
+```
+
+**Step 15: Create the segments based on the RFM score**
+```{r Create the segments based on the RFM score}
+rfm_jetdata$Segement<-"Others"
+rfm_jetdata$Segement[which(rfm_jetdata$RFM_Score %in% c(555,545,455,445,454,444,544,554))]<-"Premium Customer"
+rfm_jetdata$Segement[which(rfm_jetdata$RFM_Score %in% c(433,434,443,344,333,534,343,543,334,354,335,353,345,553,453,533))]<-"Top Customers"
+rfm_jetdata$Segement[which(rfm_jetdata$RFM_Score %in% c(322,332,323,233,232,223,222,432,522,244,452,523,242,234,424,532,532,442,342,243,542,422,442,243,524,254,324,253,324,252,224,423,245,552,255))]<-"Likley to be Top Customers"                                                
+rfm_jetdata$Segement[which(rfm_jetdata$RFM_Score %in% c(134,143,144,142,145,124,135,123,122,133,132,153,154,155,152,125))]<-"Customer not recent"
+rfm_jetdata$Segement[which(rfm_jetdata$RFM_Score %in% c(311,511,412,512,312,411,313,413,513))]<-"Customer not frequent"
+```
+
+**Step 16: Calculate the percentage of customer in each segment and plot the same**
+```{r Customer in each segement}
+divison<-rfm_jetdata%>%count(Segement)%>%mutate(Percentage=(n/3000)*100)
+ggplot(data=divison, aes(x=Segement,y=n,fill=Segement))+geom_bar(stat = "Identity")
+```
+
+**Step 17: Merge the rfm dataset to the original data set based on the customer ID**
+```{r Combine to orignal dataset}
+jetdatafinal<-merge(jetdata,rfm_jetdata,by="CustID")
+```
+
+```{r cols.print=9, rows.print=100, cols.min.print=9, pages.print=2}
+jetdatafinal
+```
+
+## Inference
+
+1. Due to the amount the Businesses contribute to ticket sales, the Jets should include some strategic incentives to keep driving ticket sales upwards
+
+2. It’s important to target the married audience. Incentives like buy 2 tickets and get 30% off or a certain percentage of the ticket price can be reduced if they come to the games with their family members or kids 
+
+3. A large number of audience comes to the game through their own vehicle, steps like free parking for certain marquee games and discounted parking rates can be provided to ensure they continue to visit the stadium 
+
+4. Involving fans more interactively through User Generated Content can help in creating organic buzz about the in-stadium experience and will excite more people to have the same experience. The club can also look at providing services like hoisting birthday parties, date nights and stadium tour etc. to increase the non-ticketing revenue 
+
+5. Customers with a higher average annual income currently do not contribute towards greater revenue. An option like a season ticket can be issued, with various features like an air-conditioned box where the individual can take his match viewing experience to the next level 
+
+6. The marketing campaign of the club should make a targeted effort to increase fan club enrollment through beneficial incentives for customers. Curate emotional video content through social media and ads showcasing what the true value of a super fan is. A certain discount on club’s facilities can be provided for the members of the fan club
+
